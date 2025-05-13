@@ -38,7 +38,7 @@ fn _main() {
     if let Some(ref announce) = torrent.announce {
         println!("Announce URL: {announce}");
     }
-    println!("File/Directory Name: {}", torrent.info.name);
+    println!("File/Directory Name: {}", torrent.info.content.name());
 
     let magnet_uri = "magnet:?xt=urn:btih:d6a67b7e10b219d01f84c1c99962f060c18bb658&dn=example";
     let magnet = MagnetLink::from_str(magnet_uri).expect("Failed to parse magnet link");

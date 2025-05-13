@@ -1,3 +1,5 @@
+pub mod v1;
+
 /// Represents the structure of a parsed BitTorrent `.torrent` file.
 /// The `TorrentFile` structure includes metadata about the torrent file itself,
 /// such as the announce URL, creation date, and information about the files in
@@ -8,6 +10,9 @@
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct TorrentFile {
     /// The main tracker URL for the torrent
+    ///
+    /// In v1, this shouldn't be optional. Keeping this optional anyway for
+    /// simplicity.
     pub announce: Option<String>,
 
     /// List of backup trackers (multi-tiered tracker support)
@@ -31,7 +36,7 @@ pub struct TorrentFile {
     pub encoding: Option<String>,
 
     /// The core metadata dictionary used to identify and download files
-    pub info: TorrentInfo,
+    pub info: v1::TorrentInfo,
 }
 
 impl TorrentFile {
@@ -52,67 +57,6 @@ impl TorrentFile {
     }
 }
 
-/// Represents the `info` dictionary within a `.torrent` file, which contains
-/// metadata about the files being shared, including the file names, sizes,
-/// piece length, and hash information.
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
-pub struct TorrentInfo {
-    /// The name of the file or directory (used as the base path)
-    pub name: String,
-
-    /// Piece size in bytes (each file is split into pieces of this length)
-    #[serde(rename = "piece length")]
-    pub piece_length: u64,
-
-    /// Concatenated SHA1 hashes of each piece (20 bytes per piece)
-    #[serde(with = "serde_bytes")]
-    pub pieces: serde_bytes::ByteBuf,
-
-    /// 1 if private torrent (disables DHT/PEX)
-    #[serde(default)]
-    pub private: Option<u8>,
-
-    /// MD5 checksum of file (rarely used; deprecated)
-    #[serde(default)]
-    pub md5sum: Option<String>,
-
-    /// Either a single file or a list of files (multi-file mode)
-    #[serde(flatten)]
-    pub content: TorrentInfoContent,
-}
-
-/// Enum representing the content of the torrent. It can be either a single file
-/// or multiple files.
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
-#[serde(untagged)]
-pub enum TorrentInfoContent {
-    /// For single-file torrents: includes total length (and optional md5sum)
-    Single {
-        length: u64,
-
-        #[serde(default)]
-        md5sum: Option<String>,
-    },
-
-    /// For multi-file torrents: list of files with individual metadata
-    Multi { files: Vec<TorrentFileEntry> },
-}
-
-/// Represents a single file within a multi-file torrent, including metadata
-/// like file length and path.
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
-pub struct TorrentFileEntry {
-    /// Size of the file in bytes
-    pub length: u64,
-
-    /// Path components (e.g. ["folder", "file.txt"])
-    pub path: Vec<String>,
-
-    /// MD5 checksum for this file (rarely used)
-    #[serde(default)]
-    pub md5sum: Option<String>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -125,13 +69,13 @@ mod tests {
             file.announce.as_deref(),
             Some("https://academictorrents.com/announce.php")
         );
-        assert_eq!(file.info.name, "test_folder");
 
         assert_eq!(file.info.piece_length, 32768);
-        let TorrentInfoContent::Multi { files } = file.info.content else {
+        let v1::TorrentInfoContent::Directory { name, files } = file.info.content else {
             panic!("should be multi files");
         };
 
+        assert_eq!(name, "test_folder");
         assert_eq!(files[0].length, 17614527);
         assert_eq!(
             files[0].path,
@@ -159,13 +103,18 @@ mod tests {
         );
         assert_eq!(file.created_by.as_deref(), Some("mktorrent 1.1"));
         assert_eq!(file.encoding, None);
-        assert_eq!(file.info.name, "ubuntu-25.04-desktop-amd64.iso");
 
         assert_eq!(file.info.piece_length, 262144);
-        let TorrentInfoContent::Single { length, md5sum: _ } = file.info.content else {
+        let v1::TorrentInfoContent::File {
+            name,
+            length,
+            md5sum: _,
+        } = file.info.content
+        else {
             panic!("should be single file");
         };
 
+        assert_eq!(name, "ubuntu-25.04-desktop-amd64.iso");
         assert_eq!(length, 6278520832);
     }
 
@@ -179,13 +128,13 @@ mod tests {
         assert_eq!(file.comment, None);
         assert_eq!(file.created_by.as_deref(), Some("libtorrent"));
         assert_eq!(file.encoding, None);
-        assert_eq!(file.info.name, "bittorrent-v1-v2-hybrid-test");
 
         assert_eq!(file.info.piece_length, 524288);
-        let TorrentInfoContent::Multi { files } = file.info.content else {
+        let v1::TorrentInfoContent::Directory { name, files } = file.info.content else {
             panic!("should be multiple files");
         };
 
+        assert_eq!(name, "bittorrent-v1-v2-hybrid-test");
         assert_eq!(files.len(), 17);
     }
 }
