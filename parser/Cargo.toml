@@ -1,0 +1,13 @@
+[package]
+name = "rustorrent-parser"
+description = "Torrent file parser"
+license = "MIT"
+authors = ["Jeremie Drouet <jeremie.drouet@gmail.com>"]
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde_bencode = { version = "0.2", default-features = false }
+serde_bytes = { version = "0.11", default-features = false }
+
