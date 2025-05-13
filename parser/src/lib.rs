@@ -177,6 +177,48 @@ impl FromStr for MagnetLink {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub enum HashBytesError {
+    UnsupportedLength,
+    InvalidHex(hex::FromHexError),
+    InvalidBase32,
+    InvalidLength,
+}
+
+impl std::fmt::Display for HashBytesError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsupportedLength => write!(f, "unsupported info_hash length"),
+            Self::InvalidHex(_) => write!(f, "invalid hex info_hash"),
+            Self::InvalidBase32 => write!(f, "invalid base32 info_hash"),
+            Self::InvalidLength => write!(f, "invalid SHA1 hash length, expected 20 bytes"),
+        }
+    }
+}
+
+impl std::error::Error for HashBytesError {}
+
+impl MagnetLink {
+    pub fn hash_bytes(&self) -> Result<[u8; 20], HashBytesError> {
+        let cleaned = self.info_hash.to_ascii_lowercase();
+
+        if cleaned.len() == 40 {
+            let decoded = hex::decode(&cleaned).map_err(HashBytesError::InvalidHex)?;
+            decoded
+                .try_into()
+                .map_err(|_| HashBytesError::InvalidLength)
+        } else if cleaned.len() == 32 {
+            let decoded = base32::decode(base32::Alphabet::Rfc4648 { padding: false }, &cleaned)
+                .ok_or(HashBytesError::InvalidBase32)?;
+            decoded
+                .try_into()
+                .map_err(|_| HashBytesError::InvalidLength)
+        } else {
+            Err(HashBytesError::UnsupportedLength)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
