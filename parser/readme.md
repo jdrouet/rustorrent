@@ -27,7 +27,8 @@ rustorrent-parser = "0.1.0"
 ### Example Usage
 
 ```rust,no_run
-use rustorrent_parser::{TorrentFile, MagnetLink, MagnetLinkParserError};
+use rustorrent_parser::file::TorrentFile;
+use rustorrent_parser::magnet::{MagnetLink, ParseError};
 use std::str::FromStr;
 
 fn _main() {
