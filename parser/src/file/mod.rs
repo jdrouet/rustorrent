@@ -1,4 +1,6 @@
 pub mod v1;
+pub mod v2;
+pub mod v2hybrid;
 
 /// Represents the structure of a parsed BitTorrent `.torrent` file.
 /// The `TorrentFile` structure includes metadata about the torrent file itself,
@@ -36,7 +38,7 @@ pub struct TorrentFile {
     pub encoding: Option<String>,
 
     /// The core metadata dictionary used to identify and download files
-    pub info: v1::TorrentInfo,
+    pub info: TorrentInfo,
 }
 
 impl TorrentFile {
@@ -57,6 +59,30 @@ impl TorrentFile {
     }
 }
 
+/// Metadata dictionary to identify files
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(untagged)]
+pub enum TorrentInfo {
+    V2Hybrid(v2hybrid::TorrentInfo),
+    V2(v2::TorrentInfo),
+    V1(v1::TorrentInfo),
+}
+
+/// Shared fields between all versions.
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+pub struct TorrentInfoBase {
+    /// Piece size in bytes (each file is split into pieces of this length)
+    #[serde(rename = "piece length")]
+    pub piece_length: u64,
+
+    /// 1 if private torrent (disables DHT/PEX)
+    #[serde(default)]
+    pub private: Option<u8>,
+
+    /// Name of the file or directory
+    pub name: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,12 +96,15 @@ mod tests {
             Some("https://academictorrents.com/announce.php")
         );
 
-        assert_eq!(file.info.piece_length, 32768);
-        let v1::TorrentInfoContent::Directory { name, files } = file.info.content else {
+        let TorrentInfo::V1(info) = file.info else {
+            panic!("expected v1");
+        };
+        assert_eq!(info.base.piece_length, 32768);
+        assert_eq!(info.base.name, "test_folder");
+        let v1::TorrentInfoContent::Directory { files } = info.fields.content else {
             panic!("should be multi files");
         };
 
-        assert_eq!(name, "test_folder");
         assert_eq!(files[0].length, 17614527);
         assert_eq!(
             files[0].path,
@@ -104,17 +133,15 @@ mod tests {
         assert_eq!(file.created_by.as_deref(), Some("mktorrent 1.1"));
         assert_eq!(file.encoding, None);
 
-        assert_eq!(file.info.piece_length, 262144);
-        let v1::TorrentInfoContent::File {
-            name,
-            length,
-            md5sum: _,
-        } = file.info.content
-        else {
+        let TorrentInfo::V1(info) = file.info else {
+            panic!("expected v1");
+        };
+        assert_eq!(info.base.piece_length, 262144);
+        assert_eq!(info.base.name, "ubuntu-25.04-desktop-amd64.iso");
+        let v1::TorrentInfoContent::File { length, md5sum: _ } = info.fields.content else {
             panic!("should be single file");
         };
 
-        assert_eq!(name, "ubuntu-25.04-desktop-amd64.iso");
         assert_eq!(length, 6278520832);
     }
 
@@ -129,12 +156,30 @@ mod tests {
         assert_eq!(file.created_by.as_deref(), Some("libtorrent"));
         assert_eq!(file.encoding, None);
 
-        assert_eq!(file.info.piece_length, 524288);
-        let v1::TorrentInfoContent::Directory { name, files } = file.info.content else {
-            panic!("should be multiple files");
+        let info = match file.info {
+            TorrentInfo::V1(_) => panic!("expected v2 hybrid, got v1"),
+            TorrentInfo::V2Hybrid(inner) => inner,
+            TorrentInfo::V2(_) => panic!("expected v2 hybrid, got v2"),
         };
+        assert_eq!(info.base.piece_length, 524288);
+    }
 
-        assert_eq!(name, "bittorrent-v1-v2-hybrid-test");
-        assert_eq!(files.len(), 17);
+    #[test]
+    fn should_parse_v2() {
+        let torrent = std::fs::read("asset/bittorrent-v2-test.torrent").unwrap();
+        let file = TorrentFile::from_bytes(&torrent).unwrap();
+        assert_eq!(file.announce, None);
+        assert!(file.announce_list.is_empty());
+        assert_eq!(file.creation_date, Some(1590097257));
+        assert_eq!(file.comment, None);
+        assert_eq!(file.created_by.as_deref(), Some("libtorrent"));
+        assert_eq!(file.encoding, None);
+
+        let info = match file.info {
+            TorrentInfo::V1(_) => panic!("expected v2, got v1"),
+            TorrentInfo::V2Hybrid(_) => panic!("expected v2, got v2 hybrid"),
+            TorrentInfo::V2(inner) => inner,
+        };
+        assert_eq!(info.base.piece_length, 4194304);
     }
 }

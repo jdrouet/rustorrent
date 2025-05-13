@@ -2,17 +2,20 @@
 /// and "multiple file".
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct TorrentInfo {
-    /// Piece size in bytes (each file is split into pieces of this length)
-    #[serde(rename = "piece length")]
-    pub piece_length: u64,
+    #[serde(flatten)]
+    pub base: super::TorrentInfoBase,
 
+    #[serde(flatten)]
+    pub fields: TorrentInfoFields,
+}
+
+/// This section contains the field which are common to both mode, "single file"
+/// and "multiple file".
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+pub struct TorrentInfoFields {
     /// Concatenated SHA1 hashes of each piece (20 bytes per piece)
     #[serde(with = "serde_bytes")]
     pub pieces: serde_bytes::ByteBuf,
-
-    /// 1 if private torrent (disables DHT/PEX)
-    #[serde(default)]
-    pub private: Option<u8>,
 
     /// Either a single file or a list of files (multi-file mode)
     #[serde(flatten)]
@@ -23,9 +26,6 @@ pub struct TorrentInfo {
 #[serde(untagged)]
 pub enum TorrentInfoContent {
     File {
-        /// The name of the file
-        name: String,
-
         /// The length of the file in bytes
         length: u64,
 
@@ -39,18 +39,16 @@ pub enum TorrentInfoContent {
     },
 
     Directory {
-        /// The name of the directory
-        name: String,
         /// The content of the directory
         files: Vec<TorrentFileEntry>,
     },
 }
 
 impl TorrentInfoContent {
-    pub fn name(&self) -> &str {
+    pub fn file_count(&self) -> usize {
         match self {
-            Self::File { name, .. } => name.as_str(),
-            Self::Directory { name, .. } => name.as_str(),
+            Self::File { .. } => 1,
+            Self::Directory { files } => files.len(),
         }
     }
 }
