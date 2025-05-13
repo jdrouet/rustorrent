@@ -30,7 +30,7 @@ rustorrent-parser = "0.1.0"
 use rustorrent_parser::{TorrentFile, MagnetLink, MagnetLinkParserError};
 use std::str::FromStr;
 
-fn main() {
+fn _main() {
     let torrent_data = std::fs::read("file.torrent").expect("Failed to read torrent file");
     let torrent: TorrentFile = TorrentFile::from_bytes(&torrent_data).expect("Failed to parse torrent");
 

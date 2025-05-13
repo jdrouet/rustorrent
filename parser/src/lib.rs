@@ -4,9 +4,11 @@ use std::str::FromStr;
 
 /// Represents the structure of a parsed BitTorrent `.torrent` file.
 /// The `TorrentFile` structure includes metadata about the torrent file itself,
-/// such as the announce URL, creation date, and information about the files in the torrent.
+/// such as the announce URL, creation date, and information about the files in
+/// the torrent.
 ///
-/// This struct is deserialized from the bencoded representation of a `.torrent` file.
+/// This struct is deserialized from the bencoded representation of a `.torrent`
+/// file.
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct TorrentFile {
     /// The main tracker URL for the torrent
@@ -37,22 +39,26 @@ pub struct TorrentFile {
 }
 
 impl TorrentFile {
-    /// Parse a `TorrentFile` from the raw bytes of a `.torrent` file (in bencoded format).
+    /// Parse a `TorrentFile` from the raw bytes of a `.torrent` file (in
+    /// bencoded format).
     ///
     /// # Parameters
     ///
-    /// * `data`: The raw bytes representing a `.torrent` file in bencoded format.
+    /// * `data`: The raw bytes representing a `.torrent` file in bencoded
+    ///   format.
     ///
     /// # Returns
     ///
-    /// A `Result` containing either a parsed `TorrentFile` or a `serde_bencode::Error` if the parsing fails.
+    /// A `Result` containing either a parsed `TorrentFile` or a
+    /// `serde_bencode::Error` if the parsing fails.
     pub fn from_bytes(data: &[u8]) -> serde_bencode::Result<Self> {
         serde_bencode::from_bytes(data)
     }
 }
 
-/// Represents the `info` dictionary within a `.torrent` file, which contains metadata
-/// about the files being shared, including the file names, sizes, piece length, and hash information.
+/// Represents the `info` dictionary within a `.torrent` file, which contains
+/// metadata about the files being shared, including the file names, sizes,
+/// piece length, and hash information.
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct TorrentInfo {
     /// The name of the file or directory (used as the base path)
@@ -79,7 +85,8 @@ pub struct TorrentInfo {
     pub content: TorrentInfoContent,
 }
 
-/// Enum representing the content of the torrent. It can be either a single file or multiple files.
+/// Enum representing the content of the torrent. It can be either a single file
+/// or multiple files.
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 #[serde(untagged)]
 pub enum TorrentInfoContent {
@@ -95,7 +102,8 @@ pub enum TorrentInfoContent {
     Multi { files: Vec<TorrentFileEntry> },
 }
 
-/// Represents a single file within a multi-file torrent, including metadata like file length and path.
+/// Represents a single file within a multi-file torrent, including metadata
+/// like file length and path.
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct TorrentFileEntry {
     /// Size of the file in bytes
@@ -135,10 +143,12 @@ impl std::fmt::Display for MagnetLinkParserError {
 
 impl std::error::Error for MagnetLinkParserError {}
 
-/// Represents a parsed Magnet URI, which includes the info hash, display name, trackers, and web seeds.
+/// Represents a parsed Magnet URI, which includes the info hash, display name,
+/// trackers, and web seeds.
 #[derive(Debug)]
 pub struct MagnetLink {
-    /// The 40-character hexadecimal BitTorrent info hash (unique identifier for the torrent).
+    /// The 40-character hexadecimal BitTorrent info hash (unique identifier for
+    /// the torrent).
     pub info_hash: String,
     /// A human-readable display name (e.g. for UI display).
     pub display_name: Option<String>,
@@ -220,27 +230,34 @@ impl std::fmt::Display for HashBytesError {
 impl std::error::Error for HashBytesError {}
 
 impl MagnetLink {
-    /// Converts the `info_hash` (a hexadecimal or Base32 string) to a 20-byte SHA1 hash.
+    /// Converts the `info_hash` (a hexadecimal or Base32 string) to a 20-byte
+    /// SHA1 hash.
     ///
-    /// This function will take the `info_hash` from the magnet link, which can be provided
-    /// in either hexadecimal or Base32 encoding, and convert it to a fixed-length 20-byte
-    /// array representing the SHA1 hash.
+    /// This function will take the `info_hash` from the magnet link, which can
+    /// be provided in either hexadecimal or Base32 encoding, and convert it
+    /// to a fixed-length 20-byte array representing the SHA1 hash.
     ///
     /// # Returns
     ///
     /// Returns a `Result`:
-    /// - `Ok([u8; 20])`: A 20-byte array representing the decoded SHA1 hash of the torrent info hash.
-    /// - `Err(HashBytesError)`: An error if the `info_hash` is of an unsupported length, has invalid hexadecimal characters,
-    ///   or is improperly formatted in Base32.
+    /// - `Ok([u8; 20])`: A 20-byte array representing the decoded SHA1 hash of
+    ///   the torrent info hash.
+    /// - `Err(HashBytesError)`: An error if the `info_hash` is of an
+    ///   unsupported length, has invalid hexadecimal characters, or is
+    ///   improperly formatted in Base32.
     ///
     /// # Errors
     ///
     /// This function may return the following errors:
     ///
-    /// - `HashBytesError::UnsupportedLength`: The `info_hash` is neither 32 nor 40 characters in length.
-    /// - `HashBytesError::InvalidHex`: The `info_hash` contains invalid hexadecimal characters when the input is expected to be hexadecimal.
-    /// - `HashBytesError::InvalidBase32`: The `info_hash` is in an invalid Base32 format when the input is expected to be Base32.
-    /// - `HashBytesError::InvalidLength`: The decoded value is not 20 bytes in length, which is the expected size for a SHA1 hash.
+    /// - `HashBytesError::UnsupportedLength`: The `info_hash` is neither 32 nor
+    ///   40 characters in length.
+    /// - `HashBytesError::InvalidHex`: The `info_hash` contains invalid
+    ///   hexadecimal characters when the input is expected to be hexadecimal.
+    /// - `HashBytesError::InvalidBase32`: The `info_hash` is in an invalid
+    ///   Base32 format when the input is expected to be Base32.
+    /// - `HashBytesError::InvalidLength`: The decoded value is not 20 bytes in
+    ///   length, which is the expected size for a SHA1 hash.
     ///
     /// # Example
     ///
