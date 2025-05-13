@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 /// This section contains the field which are common to both mode, "single file"
 /// and "multiple file".
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
@@ -20,6 +22,36 @@ pub struct TorrentInfoFields {
     /// Either a single file or a list of files (multi-file mode)
     #[serde(flatten)]
     pub content: TorrentInfoContent,
+}
+
+impl TorrentInfoFields {
+    pub fn file_iter(&self, base_name: &str) -> impl Iterator<Item = PathBuf> + '_ {
+        match self.content {
+            TorrentInfoContent::File { .. } => {
+                TorrentIterator::Single(std::iter::once(PathBuf::from(base_name)))
+            }
+            TorrentInfoContent::Directory { ref files } => {
+                TorrentIterator::Multi(files.iter().map(TorrentFileEntry::path))
+            }
+        }
+    }
+}
+enum TorrentIterator<'a> {
+    Single(std::iter::Once<PathBuf>),
+    Multi(
+        std::iter::Map<std::slice::Iter<'a, TorrentFileEntry>, fn(&'a TorrentFileEntry) -> PathBuf>,
+    ),
+}
+
+impl Iterator for TorrentIterator<'_> {
+    type Item = PathBuf;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Single(inner) => inner.next(),
+            Self::Multi(inner) => inner.next(),
+        }
+    }
 }
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
@@ -66,4 +98,12 @@ pub struct TorrentFileEntry {
     /// MD5 checksum for this file (rarely used)
     #[serde(default)]
     pub md5sum: Option<String>,
+}
+
+impl TorrentFileEntry {
+    pub fn path(&self) -> PathBuf {
+        self.path
+            .iter()
+            .fold(PathBuf::default(), |acc, part| acc.join(part))
+    }
 }
