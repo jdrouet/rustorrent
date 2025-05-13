@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct TorrentFile {
     /// The main tracker URL for the torrent
@@ -88,6 +90,93 @@ pub struct TorrentFileEntry {
     pub md5sum: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MagnetLinkParserError {
+    InvalidUrl(url::ParseError),
+    InvalidScheme,
+    MissingInfoHash,
+}
+
+impl From<url::ParseError> for MagnetLinkParserError {
+    fn from(value: url::ParseError) -> Self {
+        Self::InvalidUrl(value)
+    }
+}
+
+impl std::fmt::Display for MagnetLinkParserError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidUrl(inner) => inner.fmt(f),
+            Self::InvalidScheme => write!(f, "invalid scheme, expected \"magnet\""),
+            Self::MissingInfoHash => write!(f, "missing xt parameter for info_hash attribute"),
+        }
+    }
+}
+
+impl std::error::Error for MagnetLinkParserError {}
+
+/// Represents a parsed Magnet URI with core torrent metadata.
+#[derive(Debug)]
+pub struct MagnetLink {
+    /// The 40-character hexadecimal BitTorrent info hash (unique identifier for the torrent).
+    pub info_hash: String,
+    /// A human-readable display name (e.g. for UI display).
+    pub display_name: Option<String>,
+    /// List of tracker URLs (announces) provided in the URI.
+    pub trackers: Vec<String>,
+    /// List of web seed URLs from the `ws` parameter (for HTTP-based seeding).
+    pub web_seeds: Vec<String>,
+    /// Any additional parameters (e.g. web seeds, peer sources, etc).
+    pub params: Vec<(String, String)>,
+}
+
+impl FromStr for MagnetLink {
+    type Err = MagnetLinkParserError;
+
+    fn from_str(uri: &str) -> Result<Self, MagnetLinkParserError> {
+        let url = url::Url::parse(uri)?;
+        if url.scheme() != "magnet" {
+            return Err(MagnetLinkParserError::InvalidScheme);
+        }
+
+        let mut info_hash = None;
+        let mut display_name = None;
+        let mut trackers = Vec::new();
+        let mut web_seeds = Vec::new();
+        let mut params = Vec::new();
+
+        for (key, value) in url.query_pairs() {
+            match key.as_ref() {
+                "xt" if value.starts_with("urn:btih:") => {
+                    info_hash = Some(value.trim_start_matches("urn:btih:").into());
+                }
+                "dn" => {
+                    display_name = Some(value.into());
+                }
+                "tr" => {
+                    trackers.push(value.into());
+                }
+                "ws" => {
+                    web_seeds.push(value.into());
+                }
+                _ => {
+                    params.push((key.into(), value.into()));
+                }
+            }
+        }
+
+        let info_hash = info_hash.ok_or(MagnetLinkParserError::MissingInfoHash)?;
+
+        Ok(MagnetLink {
+            info_hash,
+            display_name,
+            trackers,
+            web_seeds,
+            params,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,5 +225,16 @@ mod tests {
         };
 
         assert_eq!(length, 6278520832);
+    }
+
+    #[test]
+    fn should_parse_academic_link() {
+        let url = "magnet:?xt=urn:btih:d984f67af9917b214cd8b6048ab5624c7df6a07a&tr=https%3A%2F%2Facademictorrents.com%2Fannounce.php&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce";
+        let magnet = crate::MagnetLink::from_str(url).unwrap();
+        assert_eq!(magnet.info_hash, "d984f67af9917b214cd8b6048ab5624c7df6a07a");
+        assert_eq!(magnet.display_name, None);
+        assert_eq!(magnet.trackers.len(), 3);
+        assert!(magnet.web_seeds.is_empty());
+        assert!(magnet.params.is_empty());
     }
 }
