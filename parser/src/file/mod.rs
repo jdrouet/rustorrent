@@ -8,7 +8,7 @@
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct TorrentFile {
     /// The main tracker URL for the torrent
-    pub announce: String,
+    pub announce: Option<String>,
 
     /// List of backup trackers (multi-tiered tracker support)
     #[serde(default, rename = "announce-list")]
@@ -118,10 +118,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn should_parse_multifile_torrent() {
-        let torrent = include_bytes!("../../asset/academictorrent-multifile.torrent");
-        let file = TorrentFile::from_bytes(torrent).unwrap();
-        assert_eq!(file.announce, "https://academictorrents.com/announce.php");
+    fn should_parse_v1_multifile() {
+        let torrent = std::fs::read("asset/academictorrent-multifile.torrent").unwrap();
+        let file = TorrentFile::from_bytes(&torrent).unwrap();
+        assert_eq!(
+            file.announce.as_deref(),
+            Some("https://academictorrents.com/announce.php")
+        );
         assert_eq!(file.info.name, "test_folder");
 
         assert_eq!(file.info.piece_length, 32768);
@@ -141,10 +144,13 @@ mod tests {
     }
 
     #[test]
-    fn should_parse_ubuntu_torrent() {
-        let torrent = include_bytes!("../../asset/ubuntu-25.04-desktop-amd64.iso.torrent");
-        let file = TorrentFile::from_bytes(torrent).unwrap();
-        assert_eq!(file.announce, "https://torrent.ubuntu.com/announce");
+    fn should_parse_v1_singlefile() {
+        let torrent = std::fs::read("asset/ubuntu-25.04-desktop-amd64.iso.torrent").unwrap();
+        let file = TorrentFile::from_bytes(&torrent).unwrap();
+        assert_eq!(
+            file.announce.as_deref(),
+            Some("https://torrent.ubuntu.com/announce")
+        );
         assert_eq!(file.announce_list.len(), 2);
         assert_eq!(file.creation_date, Some(1744895485));
         assert_eq!(
@@ -161,5 +167,25 @@ mod tests {
         };
 
         assert_eq!(length, 6278520832);
+    }
+
+    #[test]
+    fn should_parse_v2_hybrid() {
+        let torrent = std::fs::read("asset/bittorrent-v2-hybrid-test.torrent").unwrap();
+        let file = TorrentFile::from_bytes(&torrent).unwrap();
+        assert_eq!(file.announce, None);
+        assert!(file.announce_list.is_empty());
+        assert_eq!(file.creation_date, Some(1591173906));
+        assert_eq!(file.comment, None);
+        assert_eq!(file.created_by.as_deref(), Some("libtorrent"));
+        assert_eq!(file.encoding, None);
+        assert_eq!(file.info.name, "bittorrent-v1-v2-hybrid-test");
+
+        assert_eq!(file.info.piece_length, 524288);
+        let TorrentInfoContent::Multi { files } = file.info.content else {
+            panic!("should be multiple files");
+        };
+
+        assert_eq!(files.len(), 17);
     }
 }

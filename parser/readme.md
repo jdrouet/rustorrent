@@ -35,7 +35,9 @@ fn _main() {
     let torrent_data = std::fs::read("file.torrent").expect("Failed to read torrent file");
     let torrent: TorrentFile = TorrentFile::from_bytes(&torrent_data).expect("Failed to parse torrent");
 
-    println!("Announce URL: {}", torrent.announce);
+    if let Some(ref announce) = torrent.announce {
+        println!("Announce URL: {announce}");
+    }
     println!("File/Directory Name: {}", torrent.info.name);
 
     let magnet_uri = "magnet:?xt=urn:btih:d6a67b7e10b219d01f84c1c99962f060c18bb658&dn=example";
