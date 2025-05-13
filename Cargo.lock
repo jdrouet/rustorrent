@@ -186,7 +186,6 @@ version = "0.1.0"
 dependencies = [
  "base32",
  "hex",
- "percent-encoding",
  "serde",
  "serde_bencode",
  "serde_bytes",
